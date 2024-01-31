@@ -27,13 +27,13 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from unittest import TestCase
+
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
-DATABASE_URI = os.getenv(
-    "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
-)
+DATABASE_URI = os.getenv("DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres")
 
 
 ######################################################################
@@ -101,6 +101,228 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(new_product.available, product.available)
         self.assertEqual(new_product.category, product.category)
 
-    #
-    # ADD YOUR TEST CASES HERE
-    #
+    def test_read_a_product(self):
+        """It should read a product in database """
+
+        # Creation of the product
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        # Found the product and check infos
+        found_product = Product.find(product.id)
+        self.assertEqual(found_product.id, product.id)
+        self.assertEqual(found_product.name, product.name)
+        self.assertEqual(found_product.description, product.description)
+        self.assertEqual(found_product.price, product.price)
+
+    def test_update_a_product(self):
+        """It should update a product"""
+
+        # Creation of the product
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        # Make the update and check the changement as became
+        product.description = "testing"
+        original_id = product.id
+        product.update()
+        self.assertEqual(product.id, original_id)
+        self.assertEqual(product.description, "testing")
+
+        # Make sure ain't no change
+        products = Product.all()
+        self.assertEqual(len(products), 1)
+        self.assertEqual(products[0].id, original_id)
+        self.assertEqual(products[0].description, "testing")
+
+    def test_update_with_empty_id(self):
+        """It should raise DataValidationError when update is called with an empty ID"""
+
+        # Create a product instance with an empty ID
+        product = Product(id=None, name="Test Product", description="Description", price=10.99, available=True, category="CATEGORY")
+
+        # Attempt to call update and assert that it raises DataValidationError
+        with self.assertRaises(DataValidationError):
+            product.update()
+
+    def test_delete_a_product(self):
+        """It should delete a product"""
+
+        # Creation of the product
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        self.assertEqual(len(Product.all()), 1)
+
+        # Delete and check the product doesn't exist anymore
+        product.delete()
+        self.assertEqual(len(Product.all()), 0)
+
+        # Try to retrieve the deleted product
+        with self.assertRaises(AttributeError):
+            Product.find_by_id(product.id)
+
+    def test_list_all_products(self):
+        """It should list all products in the database"""
+
+        # There is no product in database
+        products = Product.all()
+        self.assertEqual(products, [])
+
+        # Create 5 Products
+        for _ in range(5):
+            product = ProductFactory()
+            product.create()
+
+        # Check if we have been have 5 products
+        products = Product.all()
+        self.assertEqual(len(products), 5)
+
+    def test_find_by_name(self):
+        """It should find a product by name"""
+
+        # Create 5 products with unique names
+        products = ProductFactory.create_batch(5)
+        for product in products:
+            product.create()
+
+        # Select a name to target
+        target_name = products[0].name
+        expected_count = len([product for product in products if product.name == target_name])
+
+        # Find the products by name
+        found_products_query = Product.find_by_name(target_name)
+        found_products = found_products_query.all()
+
+        # Assert the products  searched are all found
+        self.assertEqual(len(found_products), expected_count)
+        for product in found_products:
+            self.assertEqual(product.name, target_name)
+
+    def test_find_by_availability(self):
+        """It should find products by availability"""
+
+        # Create 3 products available and 3 other's not
+        availability = True
+        available_products = ProductFactory.create_batch(3, available=availability)
+        unavailable_products = ProductFactory.create_batch(3, available=not availability)
+
+        # Create all products in the database
+        for product in available_products + unavailable_products:
+            product.create()
+
+        # Find products by availability using the method
+        found_products_query = Product.find_by_availability(availability)
+        found_products = found_products_query.all()
+
+        # Assert the available products are all found
+        self.assertEqual(len(found_products), len(available_products))
+        for product in found_products:
+            self.assertEqual(product.available, availability)
+
+    def test_find_by_category(self):
+        """It should find products by category"""
+
+        # Create 10 products
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+
+        # Get the category of the first product
+        category = products[0].category
+
+        # Count the number of products with the specified category
+        count = len([product for product in products if product.category == category])
+
+        # Find products by category using the method
+        found_products_query = Product.find_by_category(category)
+        found_products = found_products_query.all()
+
+        # Assert the in the category searched are found
+        self.assertEqual(len(found_products), count)
+        for product in found_products:
+            self.assertEqual(product.category, category)
+
+    def test_find_by_price(self):
+        """It should return all Products with the given price"""
+
+        # Create 10 products
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+
+        # Get the price of the first product
+        price = products[0].price
+
+        # Count the number of products with the specified price
+        count = len([product for product in products if product.price == price])
+
+        # Find products by price using the method
+        found_products_query = Product.find_by_price(price)
+        found_products = found_products_query.all()
+
+        # Assert the in the price searched are found
+        self.assertEqual(len(found_products), count)
+        for product in found_products:
+            self.assertEqual(product.price, price)
+
+    def test_deserialize_valid_data(self):
+        """It should deserialize valid data without raising errors"""
+
+        # Create a product instance and provide valid data
+        valid_data = {
+            "name": "Test Product",
+            "description": "Description",
+            "price": "10.99",
+            "available": True,
+            "category": "UNKNOWN"  # Use a valid enum value
+        }
+        product = ProductFactory()
+        product.deserialize(valid_data)
+
+        # Assert that the deserialization was successful
+        self.assertEqual(product.name, "Test Product")
+        self.assertEqual(product.description, "Description")
+        self.assertEqual(product.price, Decimal("10.99"))
+        self.assertTrue(product.available)
+        self.assertEqual(product.category, Category.UNKNOWN)
+
+    def test_deserialize_invalid_decimal_value(self):
+        """It should raise DataValidationError for invalid available state"""
+
+        # Create a product instance and provide data with an invalid decimal value
+        invalid_data = {
+            "name": "Test Product",
+            "description": "Description",
+            "price": 2,
+            "available": 2015, # not a boolean
+            "category": "UNKNOWN"
+        }
+
+        # Attempt to deserialize and assert that it raises DataValidationError
+        product = ProductFactory()
+        with self.assertRaises(DataValidationError):
+            product.deserialize(invalid_data)
+
+    def test_deserialize_invalid_enum_value(self):
+        """It should raise DataValidationError for invalid enum value in data"""
+
+        # Create a product instance and provide data with an invalid enum value
+        invalid_data = {
+            "name": "Test Product",
+            "description": "Description",
+            "price": "10.99",
+            "available": True,
+            "category": "INVALID_CATEGORY"  # Invalid enum value
+        }
+
+        # Attempt to deserialize and assert that it raises DataValidationError
+        product = ProductFactory()
+        with self.assertRaises(DataValidationError):
+            product.deserialize(invalid_data)
