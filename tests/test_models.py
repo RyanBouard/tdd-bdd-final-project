@@ -23,14 +23,13 @@ While debugging just these tests it's convenient to use this:
     nosetests --stop tests/test_models.py:TestProductModel
 
 """
-import os
 import logging
+import os
 import unittest
 from decimal import Decimal
-from unittest import TestCase
 
-from service.models import Product, Category, db, DataValidationError
 from service import app
+from service.models import Product, Category, db, DataValidationError
 from tests.factories import ProductFactory
 
 DATABASE_URI = os.getenv("DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres")
@@ -143,7 +142,14 @@ class TestProductModel(unittest.TestCase):
         """It should raise DataValidationError when update is called with an empty ID"""
 
         # Create a product instance with an empty ID
-        product = Product(id=None, name="Test Product", description="Description", price=10.99, available=True, category="CATEGORY")
+        product = Product(
+            id=None,
+            name="Test Product",
+            description="Description",
+            price=10.99,
+            available=True,
+            category="CATEGORY"
+        )
 
         # Attempt to call update and assert that it raises DataValidationError
         with self.assertRaises(DataValidationError):
@@ -301,7 +307,7 @@ class TestProductModel(unittest.TestCase):
             "name": "Test Product",
             "description": "Description",
             "price": 2,
-            "available": 2015, # not a boolean
+            "available": 2015,  # not a boolean
             "category": "UNKNOWN"
         }
 
