@@ -186,6 +186,106 @@ class TestProductRoutes(TestCase):
         data = response.get_json()
         self.assertIn("was not found", data["message"])
 
+    def test_update_product(self):
+        """It should update a product"""
+
+        # Create a product
+        test_product = ProductFactory()
+        response = self.client.post(BASE_URL, json=test_product.serialize())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Update the product and assert the changement
+        new_product = response.get_json()
+        new_product["description"] = "unknown"
+        response = self.client.put(f"{BASE_URL}/{new_product['id']}", json=new_product)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        updated_product = response.get_json()
+        self.assertEqual(updated_product["description"], "unknown")
+
+    def test_delete_product(self):
+        """It should delete a product"""
+
+        # Create 5 produits
+        products = self._create_products(5)
+        product_count = self.get_product_count()
+        test_product = products[0]
+
+        # Request the delete
+        response = self.client.delete(f"{BASE_URL}/{test_product.id}")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(response.data), 0)
+
+        # Assert the product as been deleted
+        response = self.client.get(f"{BASE_URL}/{test_product.id}")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        new_count = self.get_product_count()
+        self.assertEqual(new_count, product_count - 1)
+
+    def test_get_product_list(self):
+        """ It should get a list of products """
+
+        # Create 5 products
+        self._create_products(5)
+
+        # Request and assert the status
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Assert the response get all products
+        data = response.get_json()
+        self.assertEqual(len(data), 5)
+
+    def test_get_product_list_by_category(self):
+        """ It should get a list of products for a category """
+
+        # Arrange: Create 10 products
+        products = self._create_products(10)
+        category = products[0].category
+
+        # Arrange: Find products with the specified category
+        found = [product for product in products if product.category == category]
+        found_count = len(found)
+        logging.debug("Found Products [%d] %s", found_count, found)
+
+        # Act: Make a request to get products by category
+        response = self.client.get(BASE_URL, query_string=f"category={category.name}")
+
+        # Assert: Check the response status code
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Assert: Check the number of products returned in the response
+        data = response.get_json()
+        self.assertEqual(len(data), found_count)
+
+        # Assert: Check the data returned in the response, just to be sure
+        for product in data:
+            self.assertEqual(product["category"], category.name)
+
+    def test_get_product_list_by_availability(self):
+        """It should get a list of products for a category"""
+
+        # Arrange: Create 10 products
+        products = self._create_products(10)
+
+        # Arrange: Find available products
+        available_products = [product for product in products if product.available is True]
+        available_count = len(available_products)
+
+        # Act: Make a request to get available products
+        response = self.client.get(BASE_URL, query_string="available=true")
+
+        # Assert: Check the response status code
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Assert: Check the number of available products returned in the response
+        data = response.get_json()
+        self.assertEqual(len(data), available_count)
+
+        # Assert: Check the data returned in the response, just to be sure
+        for product in data:
+            # Assert the 'available' property for each product
+            self.assertEqual(product["available"], True)
+
     ######################################################################
     # Utility functions
     ######################################################################
@@ -193,7 +293,9 @@ class TestProductRoutes(TestCase):
     def get_product_count(self):
         """save the current number of products"""
         response = self.client.get(BASE_URL)
+        print(response.status_code)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.get_json()
         # logging.debug("data = %s", data)
         return len(data)
+
