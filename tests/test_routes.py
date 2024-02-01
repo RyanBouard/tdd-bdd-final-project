@@ -231,6 +231,34 @@ class TestProductRoutes(TestCase):
         data = response.get_json()
         self.assertEqual(len(data), 5)
 
+    def test_get_product_list_by_name(self):
+        """It should get a list of products by name"""
+
+        # Arrange: Create 10 products with distinct names
+        products = self._create_products(10)
+        distinct_names = set(product.name for product in products)
+
+        # Arrange: Select a name from the created products
+        selected_name = distinct_names.pop()
+
+        # Arrange: Filter products with the selected name
+        found = [product for product in products if product.name == selected_name]
+        found_count = len(found)
+        logging.debug("Found Products [%d] %s", found_count, found)
+
+        # Act: Make a request to get products by name
+        response = self.client.get(BASE_URL, query_string=f"name={selected_name}")
+
+        # Assert: Check the response
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(len(data), found_count)
+
+        # Assert: Check the data returned in the response, just to be sure
+        for product in data:
+
+            self.assertEqual(product["name"], selected_name)
+
     def test_get_product_list_by_category(self):
         """ It should get a list of products for a category """
 
